@@ -5,21 +5,11 @@ import FontAwesome from 'react-native-vector-icons/FontAwesome';
 import AsyncStorage from '@react-native-async-storage/async-storage';
 import { useFocusEffect } from '@react-navigation/native';
 import { Ionicons } from '@expo/vector-icons';
-import * as Notifications from 'expo-notifications';
 
 // Initialize Supabase client
 const supabaseUrl = 'https://pafntpcanmavljkxyerv.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhZm50cGNhbm1hdmxqa3h5ZXJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ1MDA5MDAsImV4cCI6MjA1MDA3NjkwMH0.GwUG6tDFxnYE5VhTOK1P8Yx8qxq696zrgvZXRgwagPM';
 const supabase = createClient(supabaseUrl, supabaseKey);
-
-// Configure notifications
-Notifications.setNotificationHandler({
-  handleNotification: async () => ({
-    shouldShowAlert: true,
-    shouldPlaySound: true,
-    shouldSetBadge: false,
-  }),
-});
 
 const HomeScreen = ({ navigation, route }) => {
   const getCurrentWeekDates = () => {
@@ -42,24 +32,10 @@ const HomeScreen = ({ navigation, route }) => {
   const [bpm, setBpm] = useState(0);
   const [db, setDb] = useState(0);
   const [latestReportId, setLatestReportId] = useState(null);
-  const [comment, setComment] = useState(''); // State to store the comment
-
-  const scaleValue = useState(new Animated.Value(1))[0];
-
   const [bpmThreshold, setBpmThreshold] = useState(null);
   const [dbThreshold, setDbThreshold] = useState(null);
-
-  // Request notification permissions on component mount
-  useEffect(() => {
-    const requestNotificationPermission = async () => {
-      const { status } = await Notifications.requestPermissionsAsync();
-      if (status !== 'granted') {
-        Alert.alert('Permission Required', 'You need to enable notifications to receive alerts!');
-      }
-    };
-
-    requestNotificationPermission();
-  }, []);
+  const [comment, setComment] = useState('');
+  const scaleValue = useState(new Animated.Value(1))[0];
 
   useEffect(() => {
     if (route.params?.bpmThreshold && route.params?.dbThreshold) {
@@ -100,8 +76,7 @@ const HomeScreen = ({ navigation, route }) => {
   }, [latestReportId]);
 
   const fetchReports = async () => {
-    const { data, error } = await supabase
-      .from('READINGS2')
+    const { data, error } = await supabase.from('READINGS2')
       .select('*')
       .order('id', { ascending: false })
       .limit(1);
@@ -118,50 +93,31 @@ const HomeScreen = ({ navigation, route }) => {
       setDb(newReport.DECIBEL);
 
       if (newReport.HEARTRATE >= bpmThreshold && newReport.DECIBEL >= dbThreshold) {
-        if (!reports.some((report) => report.id === newReport.id)) {
-          setReports((prevReports) => [{ ...newReport, status: 'Pending' }, ...prevReports]);
+        if (!reports.some(report => report.id === newReport.id)) {
+          setReports(prevReports => [{ ...newReport, status: "Pending" }, ...prevReports]);
           setLatestReportId(newReport.id);
-
-          // Trigger local notification
-          await Notifications.scheduleNotificationAsync({
-            content: {
-              title: 'New Alert!',
-              body: `Heart Rate: ${newReport.HEARTRATE} bpm, Decibel: ${newReport.DECIBEL} db`,
-            },
-            trigger: null, // Trigger immediately
-          });
         }
       }
     }
   };
 
-  const handleStatusUpdate = async (report, status, comment) => {
-    const statusBoolean = status === 'Sign of Symptom'; // Convert status to boolean
+  const handleStatusUpdate = async (index, status) => {
+    const updatedReports = reports.map((rep, repIndex) =>
+      repIndex === index ? { ...rep, status } : rep
+    );
+    setReports(updatedReports);
 
-    // Insert data into the ALERT table
-    const { data, error } = await supabase.from('ALERT').insert([
-      {
-        HEARTRATE: report.HEARTRATE,
-        DECIBEL: report.DECIBEL,
-        COMMENT: comment,
-        STATUS: statusBoolean,
-      },
+    const report = updatedReports[index];
+    const statusBool = status === "Sign of Symptom";
+
+    const { error } = await supabase.from('ALERT').insert([
+      { HEARTRATE: report.HEARTRATE, DECIBEL: report.DECIBEL, STATUS: statusBool, COMMENT: comment }
     ]);
 
     if (error) {
       console.error('Error inserting data into ALERT table:', error.message);
-      return;
     }
 
-    console.log('Data inserted into ALERT table:', data);
-
-    // Update the local state to reflect the new status
-    const updatedReports = reports.map((rep) =>
-      rep.id === report.id ? { ...rep, status } : rep
-    );
-    setReports(updatedReports);
-
-    // Navigate to the Records screen with the updated reports
     navigation.navigate('Records', { reports: updatedReports });
   };
 
@@ -173,20 +129,14 @@ const HomeScreen = ({ navigation, route }) => {
             <Animated.View style={{ transform: [{ scale: scaleValue }] }}>
               <FontAwesome name="heart" size={30} color="#DF6660" style={styles.heartIcon} />
             </Animated.View>
-            <Text style={styles.numbpmText}>
-              {bpm}
-              {'\n'}
-            </Text>
+            <Text style={styles.numbpmText}>{bpm}{'\n'}</Text>
             <Text style={styles.bpmText}>bpm</Text>
           </View>
         </View>
 
         <View style={styles.circleContainer}>
           <View style={styles.circle}>
-            <Text style={styles.dbText}>
-              {db}
-              {'\n'}db
-            </Text>
+            <Text style={styles.dbText}>{db}{'\n'}db</Text>
           </View>
         </View>
       </View>
@@ -211,57 +161,22 @@ const HomeScreen = ({ navigation, route }) => {
         <ScrollView style={styles.reportsScroll}>
           {reports.map((report, index) => {
             let statusSymbol;
-
-            if (report.status === 'Pending')
-              statusSymbol = <Ionicons name="help-circle" size={20} color="orange" />;
-            else if (report.status === 'False Symptom')
-              statusSymbol = <Ionicons name="close-circle" size={20} color="red" />;
-            else if (report.status === 'Sign of Symptom')
-              statusSymbol = <Ionicons name="checkmark-circle" size={20} color="green" />;
+            if (report.status === "Pending") statusSymbol = <Ionicons name="help-circle" size={20} color="orange" />;
+            else if (report.status === "False Symptom") statusSymbol = <Ionicons name="close-circle" size={20} color="red" />;
+            else if (report.status === "Sign of Symptom") statusSymbol = <Ionicons name="checkmark-circle" size={20} color="green" />;
 
             return (
-              <TouchableOpacity
-                key={index}
-                style={styles.reportItem}
-                onPress={() => setExpandedItem(expandedItem === index ? null : index)}
-              >
-                <View>
-                  <Text style={styles.pendingTitle}>
-                    {statusSymbol} {report.status}
-                  </Text>
-                  <Text style={styles.reportDetails}>
-                    {report.HEARTRATE} bpm, {report.DECIBEL} db
-                  </Text>
+              <TouchableOpacity key={index} style={styles.reportItem} onPress={() => setExpandedItem(expandedItem === index ? null : index)}>
+                <Text style={styles.pendingTitle}>{statusSymbol} {report.status}</Text>
+                <Text style={styles.reportDetails}>{report.HEARTRATE} bpm, {report.DECIBEL} db</Text>
 
-                  {expandedItem === index && report.status === 'Pending' && (
-                    <View style={styles.expandedDetails}>
-                      <Text style={styles.reportDetails}>Is this a symptom?</Text>
-
-                      <TextInput
-                        style={styles.commentBox}
-                        placeholder="Add a comment..."
-                        multiline
-                        onChangeText={(text) => setComment(text)}
-                      />
-
-                      <View style={styles.buttonContainer}>
-                        <TouchableOpacity
-                          style={styles.symptomButton}
-                          onPress={() => handleStatusUpdate(report, 'Sign of Symptom', comment)}
-                        >
-                          <Text style={styles.buttonText}>Symptoms</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={styles.notSymptomButton}
-                          onPress={() => handleStatusUpdate(report, 'False Symptom', comment)}
-                        >
-                          <Text style={styles.buttonText}>Not Symptoms</Text>
-                        </TouchableOpacity>
-                      </View>
-                    </View>
-                  )}
-                </View>
+                {expandedItem === index && report.status === "Pending" && (
+                  <View>
+                    <TextInput style={styles.commentBox} placeholder="Add a comment..." multiline onChangeText={setComment} />
+                    <TouchableOpacity onPress={() => handleStatusUpdate(index, "Sign of Symptom")}><Text>Symptoms</Text></TouchableOpacity>
+                    <TouchableOpacity onPress={() => handleStatusUpdate(index, "False Symptom")}><Text>Not Symptoms</Text></TouchableOpacity>
+                  </View>
+                )}
               </TouchableOpacity>
             );
           })}
@@ -270,7 +185,6 @@ const HomeScreen = ({ navigation, route }) => {
     </ScrollView>
   );
 };
-
 
 const styles = StyleSheet.create({
   container: {

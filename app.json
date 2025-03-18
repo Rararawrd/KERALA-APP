@@ -1,10 +1,10 @@
 {
   "expo": {
-    "name": "KERALA-APP",
+    "name": "KERALA",
     "slug": "KERALA-APP",
     "version": "1.0.0",
     "orientation": "portrait",
-    "icon": "./assets/icon.png",
+    "icon": "./assets/k-icon.png",
     "userInterfaceStyle": "light",
     "newArchEnabled": true,
     "splash": {
@@ -17,16 +17,17 @@
     },
     "android": {
       "adaptiveIcon": {
-        "foregroundImage": "./assets/adaptive-icon.png",
+        "foregroundImage": "./assets/k-icon.png",
         "backgroundColor": "#ffffff"
       },
-      "package": "com.rawrd.KERALAAPP"
+      "package": "com.rawrd.KERALA"
     },
     "web": {
       "favicon": "./assets/favicon.png"
     },
     "extra": {
       "eas": {
+
         "projectId": "3aa6a30b-5943-42a6-8a42-54def0426e87"
       }
     }
