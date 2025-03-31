@@ -82,19 +82,26 @@ const SettingsScreen = ({ navigation }) => {
             const savedBpm = await AsyncStorage.getItem('bpmThreshold');
             const savedDb = await AsyncStorage.getItem('dbThreshold');
 
-            // Load from Supabase where t_id = 1
+            // Load most recent recording from Supabase
             const { data, error } = await supabase
                 .from('threshold')
-                .select('t_bpm, t_dba')
-                .eq('t_id', 1)
-                .single();
+                .select('t_bpm, t_dba, recording')
+                .order('t_id', { ascending: false })
+                .limit(1);
 
-            if (!error && data) {
+            if (!error && data && data.length > 0) {
+                const latestRecording = data[0];
                 // Use Supabase data if available, otherwise use local storage
-                setBpmThreshold(data.t_bpm?.toString() ?? savedBpm ?? '');
-                setDbThreshold(data.t_dba?.toString() ?? savedDb ?? '');
-                setBpmInput(data.t_bpm?.toString() ?? savedBpm ?? '');
-                setDbInput(data.t_dba?.toString() ?? savedDb ?? '');
+                setBpmThreshold(latestRecording.t_bpm?.toString() ?? savedBpm ?? '');
+                setDbThreshold(latestRecording.t_dba?.toString() ?? savedDb ?? '');
+                setBpmInput(latestRecording.t_bpm?.toString() ?? savedBpm ?? '');
+                setDbInput(latestRecording.t_dba?.toString() ?? savedDb ?? '');
+                
+                // Set recording status
+                if (latestRecording.recording) {
+                    setIsRecording(true);
+                    startTimer();
+                }
             } else {
                 // Fallback to local storage if Supabase fails
                 setBpmThreshold(savedBpm ?? '');
@@ -152,31 +159,64 @@ const SettingsScreen = ({ navigation }) => {
             Alert.alert('Error', 'Please enter both BPM and dB values');
             return;
         }
-
+    
         setLoading(true);
         try {
-            // Save to local storage
+            // Check if thresholds have changed
+            const bpmChanged = bpmInput !== bpmThreshold;
+            const dbChanged = dbInput !== dbThreshold;
+            const thresholdsChanged = bpmChanged || dbChanged;
+    
+            // Save to local storage regardless
             await AsyncStorage.setItem('bpmThreshold', bpmInput);
             await AsyncStorage.setItem('dbThreshold', dbInput);
-            
-            // Update Supabase where t_id = 1
-            const { error } = await supabase
-                .from('threshold')
-                .update({ 
-                    t_bpm: parseInt(bpmInput),
-                    t_dba: parseInt(dbInput)
-                })
-                .eq('t_id', 1);
-
-            if (error) {
-                throw error;
+    
+            if (thresholdsChanged) {
+                // If thresholds changed, insert a new row with recording status true
+                const { data, error } = await supabase
+                    .from('threshold')
+                    .insert([{ 
+                        t_bpm: parseInt(bpmInput),
+                        t_dba: parseInt(dbInput),
+                        recording: true
+                    }])
+                    .select();
+    
+                if (error) {
+                    throw error;
+                }
+            } else {
+                // If thresholds didn't change, find the most recent recording
+                const { data: recentRecordings, error: findError } = await supabase
+                    .from('threshold')
+                    .select('t_id')
+                    .order('t_id', { ascending: false })
+                    .limit(1);
+    
+                if (findError) throw findError;
+                
+                if (!recentRecordings || recentRecordings.length === 0) {
+                    throw new Error('No existing recording found');
+                }
+    
+                const recordingId = recentRecordings[0].t_id;
+    
+                // Update the recording status to true
+                const { error: updateError } = await supabase
+                    .from('threshold')
+                    .update({ 
+                        recording: true
+                    })
+                    .eq('t_id', recordingId);
+    
+                if (updateError) throw updateError;
             }
-
+    
             // Update state and navigate
             setBpmThreshold(bpmInput);
             setDbThreshold(dbInput);
             setIsRecording(true);
-            startTimer(); // Start the timer when recording begins
+            startTimer();
             Alert.alert('Success', 'Recording started successfully');
             navigation.navigate('Home', { 
                 bpmThreshold: bpmInput, 
@@ -190,10 +230,41 @@ const SettingsScreen = ({ navigation }) => {
         }
     };
 
-    const handleStop = () => {
-        setIsRecording(false);
-        stopTimer(); // Stop the timer but don't reset it
-        Alert.alert('Recording Stopped', 'The recording has been stopped');
+    const handleStop = async () => {
+        try {
+            // Find the most recent active recording
+            const { data: activeRecordings, error: findError } = await supabase
+                .from('threshold')
+                .select('t_id')
+                .eq('recording', true)
+                .order('t_id', { ascending: false })
+                .limit(1);
+
+            if (findError) throw findError;
+            
+            if (!activeRecordings || activeRecordings.length === 0) {
+                throw new Error('No active recording found');
+            }
+
+            const recordingId = activeRecordings[0].t_id;
+
+            // Update the recording status to false
+            const { error: updateError } = await supabase
+                .from('threshold')
+                .update({ 
+                    recording: false
+                })
+                .eq('t_id', recordingId);
+
+            if (updateError) throw updateError;
+
+            setIsRecording(false);
+            stopTimer();
+            Alert.alert('Recording Stopped', 'The recording has been stopped');
+        } catch (error) {
+            console.error('Error stopping recording:', error);
+            Alert.alert('Error', 'Failed to stop recording');
+        }
     };
 
     return (
@@ -207,16 +278,6 @@ const SettingsScreen = ({ navigation }) => {
                 <Text style={styles.timerStatus}>
                     Status: {isRecording ? 'Recording' : 'Not Recording'}
                 </Text>
-                
-                {/* <View style={styles.timerButtonContainer}>
-                    <TouchableOpacity
-                        style={[styles.resetButton, seconds === 0 && styles.disabledButton]}
-                        onPress={resetTimer}
-                        disabled={seconds === 0}
-                    >
-                        <Text style={styles.resetButtonText}>Reset</Text>
-                    </TouchableOpacity>
-                </View> */}
             </View>
 
             <View style={styles.record}>
@@ -278,15 +339,8 @@ const SettingsScreen = ({ navigation }) => {
             </View>
             
             <View style={styles.currentValues}>
-                {/* <Text style={styles.currentValueText}>
-                    Current Heart Rate: {bpmThreshold || 'Not set'} BPM
-                </Text>
-                <Text style={styles.currentValueText}>
-                    Current Decibel: {dbThreshold || 'Not set'} dB
-                </Text> */}
                 <Text style={styles.currentValueText}>
                     Notification will alert you if readings exceed thresholds and symptoms occur in the patient.
-                    
                 </Text>
             </View>
         </ScrollView>
@@ -316,7 +370,7 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 16,
         fontWeight: 'bold',
-        alignSelf: 'flex-start', // Aligns to the left
+        alignSelf: 'flex-start',
         marginBottom: 5,
     },
     timerText: {
@@ -329,23 +383,6 @@ const styles = StyleSheet.create({
         color: '#FFFFFF',
         fontSize: 16,
         marginBottom: 10,
-    },
-    timerButtonContainer: {
-        width: '100%',
-        flexDirection: 'row',
-        justifyContent: 'center',
-    },
-    resetButton: {
-        backgroundColor: '#FF9500',
-        padding: 10,
-        borderRadius: 10,
-        width: 100,
-        alignItems: 'center',
-    },
-    resetButtonText: {
-        color: '#FFFFFF',
-        fontSize: 16,
-        fontWeight: 'bold',
     },
     record: {
         backgroundColor: '#F3EEF8',
