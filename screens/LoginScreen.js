@@ -1,94 +1,112 @@
 import React, { useState } from 'react';
-import { StatusBar } from 'expo-status-bar';
-import { StyleSheet, Text, View, Image, SafeAreaView, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { StyleSheet, Text, View, SafeAreaView, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = 'https://pafntpcanmavljkxyerv.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhZm50cGNhbm1hdmxqa3h5ZXJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ1MDA5MDAsImV4cCI6MjA1MDA3NjkwMH0.GwUG6tDFxnYE5VhTOK1P8Yx8qxq696zrgvZXRgwagPM';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 const LoginScreen = ({navigation}) => {
   const [form, setForm] = useState({
     email: '',
     password: '',
-  })
+  });
+  const [loading, setLoading] = useState(false);
+
+  const handleLogin = async () => {
+    if (!form.email || !form.password) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
+    setLoading(true);
+    
+    try {
+      // Query the SYSTEM_TEST table for matching credentials
+      const { data, error } = await supabase
+        .from('SYSTEM_TEST')
+        .select('*')
+        .eq('USERNAME', form.email)
+        .eq('PASSWORD', form.password)
+        .single();
+
+      if (error) throw error;
+      
+      if (data) {
+        // Successful login
+        navigation.navigate("Main");
+      } else {
+        Alert.alert('Error', 'Invalid username or password');
+      }
+    } catch (error) {
+      Alert.alert('Error', error.message);
+    } finally {
+      setLoading(false);
+    }
+  };
 
   return (
     <SafeAreaView style={{flex: 1, backgroundColor: '#2C2F48'}}>
-        <View style={[styles.container, {justifyContent: 'center'}]}>
-            <View style={styles.header}>
-            {/* <Image
-                source={require('./assets/chaewon.jpg')}
-                style={styles.headerImg}
-                alt="Logo "
-            /> */}
+      <View style={[styles.container, {justifyContent: 'center'}]}>
+        <View style={styles.header}>
+          <Text style={styles.title}>KERALA</Text>
+          <Text style={styles.subtitle}>Sign in to KERALA</Text>
 
-            <Text style={styles.title}>KERALA</Text>
-
-            <Text style={styles.subtitle}>
-                Sign in to KERALA
-            </Text>
-
-            <View styles={styles.form}>
-                <View style={styles.input}>
-                <Text style={styles.inputLabel}>Username</Text>
-
-                <TextInput
-                    autoCapitalize="none"
-                    autoCorrect={false}
-                    keyboardType="email-address"
-                    style={styles.inputControl}
-                    placeholder='Enter username'
-                    placeholderTextColor="#6b7280"
-                    value={form.email}
-                    onChangeText={email => setForm({...form, email})}
-                    />
-                </View>
-
-                <View style={styles.input}>
-                <Text style={styles.inputLabel}>Password</Text>
-
-                <TextInput
-                    secureTextEntry
-                    style={styles.inputControl}
-                    placeholder='Enter password'
-                    placeholderTextColor="#6b7280"
-                    value={form.password}
-                    onChangeText={password => setForm({...form, password})}
-                    />
-                </View>
-
+          <View styles={styles.form}>
+            <View style={styles.input}>
+              <Text style={styles.inputLabel}>Username</Text>
+              <TextInput
+                autoCapitalize="none"
+                autoCorrect={false}
+                style={styles.inputControl}
+                placeholder='Enter username'
+                placeholderTextColor="#6b7280"
+                value={form.email}
+                onChangeText={email => setForm({...form, email})}
+              />
             </View>
 
-            <View style={styles.formAction}>
-                <TouchableOpacity
-                onPress={() => {
-                //handle onPress
-
-                // Alert.alert('Successfully logged in');
-                navigation.navigate("Main")
-                }}>
-                <View style={styles.btn}>
-                    <Text style={styles.btnText}>Sign in</Text>
-                </View>
-                </TouchableOpacity>
-               
+            <View style={styles.input}>
+              <Text style={styles.inputLabel}>Password</Text>
+              <TextInput
+                autoCapitalize="none"
+                secureTextEntry
+                style={styles.inputControl}
+                placeholder='Enter password'
+                placeholderTextColor="#6b7280"
+                value={form.password}
+                onChangeText={password => setForm({...form, password})}
+              />
             </View>
-           
+          </View>
+
+          <View style={styles.formAction}>
             <TouchableOpacity
-                style={{ marginTop: 'auto'}}
-                onPress={() => {
-               
-                // handle onPress
-                navigation.navigate("Register")
-                }}>
-                <Text style={styles.formFooter}>
-                Don't have an account?{' '}
-                <Text style={{ textDecorationLine: 'underline'}}>Sign up</Text>
+              onPress={handleLogin}
+              disabled={loading}
+            >
+              <View style={styles.btn}>
+                <Text style={styles.btnText}>
+                  {loading ? 'Signing in...' : 'Sign in'}
                 </Text>
+              </View>
             </TouchableOpacity>
-
-            </View>
+          </View>
+          
+          <TouchableOpacity
+            style={{ marginTop: 'auto'}}
+            onPress={() => navigation.navigate("Register")}
+          >
+            <Text style={styles.formFooter}>
+              Don't have an account?{' '}
+              <Text style={{ textDecorationLine: 'underline'}}>Sign up</Text>
+            </Text>
+          </TouchableOpacity>
         </View>
+      </View>
     </SafeAreaView>
-   
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {

@@ -1,104 +1,133 @@
 import React, { useState } from 'react';
-import { StatusBar } from 'expo-status-bar';
 import { StyleSheet, Text, View, SafeAreaView, TextInput, TouchableOpacity, Alert } from 'react-native';
+import { createClient } from '@supabase/supabase-js';
 
-const RegisterScreen = ({navigation}) => {
+const supabaseUrl = 'https://pafntpcanmavljkxyerv.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhZm50cGNhbm1hdmxqa3h5ZXJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ1MDA5MDAsImV4cCI6MjA1MDA3NjkwMH0.GwUG6tDFxnYE5VhTOK1P8Yx8qxq696zrgvZXRgwagPM';
+const supabase = createClient(supabaseUrl, supabaseKey);
+
+const RegisterScreen = ({ navigation }) => {
   const [form, setForm] = useState({
-    email: '',
     username: '',
     password: '',
     confirmPassword: '',
   });
+  const [loading, setLoading] = useState(false);
 
-  const handleRegister = () => {
+  const handleRegister = async () => {
+    if (!form.username || !form.password || !form.confirmPassword) {
+      Alert.alert('Error', 'Please fill in all fields');
+      return;
+    }
+
     if (form.password !== form.confirmPassword) {
       Alert.alert('Error', 'Passwords do not match');
       return;
     }
-    
-    // Here you would typically handle the registration logic
-    Alert.alert('Success', 'Successfully registered');
-    navigation.navigate("Login");
+
+    setLoading(true);
+    try {
+      // Insert user data into SYSTEM_TEST table
+      const { data, error } = await supabase
+        .from('SYSTEM_TEST')
+        .insert([
+          { 
+            USERNAME: form.username,
+            PASSWORD: form.password, // Note: In production, use proper authentication
+            NEW_STATUS: true
+          }
+        ])
+        .select();
+
+      if (error) throw error;
+
+      if (data) {
+        Alert.alert('Success', 'Account created successfully!');
+        navigation.navigate('Login');
+      }
+    } catch (error) {
+      Alert.alert('Error', error.message);
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
-    <SafeAreaView style={{flex: 1, backgroundColor: '#2C2F48'}}>
-        <View style={styles.container}>
-            <View style={{flex: 1, justifyContent: 'center'}}>
-                <View style={styles.header}>
-                    <Text style={styles.title}>KERALA</Text>
+    <SafeAreaView style={{ flex: 1, backgroundColor: '#2C2F48' }}>
+      <View style={styles.container}>
+        <View style={{ flex: 1, justifyContent: 'center' }}>
+          <View style={styles.header}>
+            <Text style={styles.title}>KERALA</Text>
+            <Text style={styles.subtitle}>Create an account to get started</Text>
 
-                    <Text style={styles.subtitle}>
-                        Create an account to get started
-                    </Text>
+            <View style={styles.form}>
+              <View style={styles.input}>
+                <Text style={styles.inputLabel}>Username</Text>
+                <TextInput
+                  autoCapitalize="none"
+                  autoCorrect={false}
+                  style={styles.inputControl}
+                  placeholder="Enter username"
+                  placeholderTextColor="#6b7280"
+                  value={form.username}
+                  onChangeText={(username) => setForm({ ...form, username })}
+                />
+              </View>
 
-                    <View styles={styles.form}>
-                        <View style={styles.input}>
-                            <Text style={styles.inputLabel}>Username</Text>
+              <View style={styles.input}>
+                <Text style={styles.inputLabel}>Password</Text>
+                <TextInput
+                  autoCapitalize="none"
+                  secureTextEntry
+                  style={styles.inputControl}
+                  placeholder="Enter password"
+                  placeholderTextColor="#6b7280"
+                  value={form.password}
+                  onChangeText={(password) => setForm({ ...form, password })}
+                />
+              </View>
 
-                            <TextInput
-                                autoCapitalize="none"
-                                autoCorrect={false}
-                                style={styles.inputControl}
-                                placeholder='Enter username'
-                                placeholderTextColor="#6b7280"
-                                value={form.username}
-                                onChangeText={username => setForm({...form, username})}
-                            />
-                        </View>
-
-                        <View style={styles.input}>
-                            <Text style={styles.inputLabel}>Password</Text>
-
-                            <TextInput
-                                secureTextEntry
-                                style={styles.inputControl}
-                                placeholder='Enter password'
-                                placeholderTextColor="#6b7280"
-                                value={form.password}
-                                onChangeText={password => setForm({...form, password})}
-                            />
-                        </View>
-
-                        <View style={styles.input}>
-                            <Text style={styles.inputLabel}>Re-type Password</Text>
-
-                            <TextInput
-                                secureTextEntry
-                                style={styles.inputControl}
-                                placeholder='Confirm your password'
-                                placeholderTextColor="#6b7280"
-                                value={form.confirmPassword}
-                                onChangeText={confirmPassword => setForm({...form, confirmPassword})}
-                            />
-                        </View>
-                    </View>
-
-                    <View style={styles.formAction}>
-                        <TouchableOpacity
-                            onPress={handleRegister}>
-                            <View style={styles.btn}>
-                                <Text style={styles.btnText}>Sign up</Text>
-                            </View>
-                        </TouchableOpacity>
-                    </View>
-
-                    <TouchableOpacity
-                        style={{ marginTop: 'auto'}}
-                        onPress={() => {
-                            navigation.navigate("Login")
-                        }}>
-                        <Text style={styles.formFooter}>
-                            Already have an account?{' '}
-                            <Text style={{ textDecorationLine: 'underline'}}>Sign in</Text>
-                        </Text>
-                    </TouchableOpacity>
-                </View>
+              <View style={styles.input}>
+                <Text style={styles.inputLabel}>Confirm Password</Text>
+                <TextInput
+                  autoCapitalize="none"
+                  secureTextEntry
+                  style={styles.inputControl}
+                  placeholder="Confirm your password"
+                  placeholderTextColor="#6b7280"
+                  value={form.confirmPassword}
+                  onChangeText={(confirmPassword) => setForm({ ...form, confirmPassword })}
+                />
+              </View>
             </View>
+
+            <View style={styles.formAction}>
+              <TouchableOpacity
+                onPress={handleRegister}
+                disabled={loading}
+                style={styles.btn}
+              >
+                <Text style={styles.btnText}>
+                  {loading ? 'Creating account...' : 'Sign up'}
+                </Text>
+              </TouchableOpacity>
+            </View>
+
+            <TouchableOpacity
+              style={{ marginTop: 'auto' }}
+              onPress={() => navigation.navigate('Login')}
+            >
+              <Text style={styles.formFooter}>
+                Already have an account?{' '}
+                <Text style={{ textDecorationLine: 'underline' }}>Sign in</Text>
+              </Text>
+            </TouchableOpacity>
+          </View>
         </View>
+      </View>
     </SafeAreaView>
   );
-}
+};
 
 const styles = StyleSheet.create({
   container: {
@@ -142,7 +171,6 @@ const styles = StyleSheet.create({
   },
   form: {
     marginBottom: 24,
-    flex: 1,
   },
   formAction: {
     marginVertical: 24,
@@ -169,7 +197,7 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: '600',
     color: '#fff',
-  }
+  },
 });
 
 export default RegisterScreen;
