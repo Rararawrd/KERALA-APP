@@ -42,7 +42,7 @@ const HomeScreen = ({ navigation, route }) => {
   const [bpm, setBpm] = useState(0);
   const [db, setDb] = useState(0);
   const [latestReportId, setLatestReportId] = useState(null);
-  const [comment, setComment] = useState(''); // State to store the comment
+  const [comment, setComment] = useState('');
 
   const scaleValue = useState(new Animated.Value(1))[0];
 
@@ -101,7 +101,7 @@ const HomeScreen = ({ navigation, route }) => {
 
   const fetchReports = async () => {
     const { data, error } = await supabase
-      .from('READINGS2')
+      .from('READINGS2_duplicate')
       .select('*')
       .order('id', { ascending: false })
       .limit(1);
@@ -136,33 +136,40 @@ const HomeScreen = ({ navigation, route }) => {
   };
 
   const handleStatusUpdate = async (report, status, comment) => {
-    const statusBoolean = status === 'Sign of Symptom'; // Convert status to boolean
+    try {
+      // Update the record in Supabase (only update symptom and comment columns)
+      const { data, error } = await supabase
+        .from('READINGS2_duplicate')
+        .update({
+          symptom: status === 'Sign of Symptom',
+          comment: comment || null
+        })
+        .eq('id', report.id);
 
-    // Insert data into the ALERT table
-    const { data, error } = await supabase.from('ALERT').insert([
-      {
-        HEARTRATE: report.HEARTRATE,
-        DECIBEL: report.DECIBEL,
-        COMMENT: comment,
-        STATUS: statusBoolean,
-      },
-    ]);
+      if (error) {
+        console.error('Error updating record:', error.message);
+        return;
+      }
 
-    if (error) {
-      console.error('Error inserting data into ALERT table:', error.message);
-      return;
+      // Update the local state to reflect the new status
+      const updatedReports = reports.map((rep) =>
+        rep.id === report.id ? { 
+          ...rep, 
+          status,
+          symptom: status === 'Sign of Symptom',
+          comment: comment || null
+        } : rep
+      );
+      
+      setReports(updatedReports);
+      setComment(''); // Clear the comment input after submission
+
+      // Navigate to the Records screen with the updated reports
+      navigation.navigate('Records', { reports: updatedReports });
+
+    } catch (err) {
+      console.error('Error in handleStatusUpdate:', err);
     }
-
-    console.log('Data inserted into ALERT table:', data);
-
-    // Update the local state to reflect the new status
-    const updatedReports = reports.map((rep) =>
-      rep.id === report.id ? { ...rep, status } : rep
-    );
-    setReports(updatedReports);
-
-    // Navigate to the Records screen with the updated reports
-    navigation.navigate('Records', { reports: updatedReports });
   };
 
   return (
@@ -241,6 +248,7 @@ const HomeScreen = ({ navigation, route }) => {
                         style={styles.commentBox}
                         placeholder="Add a comment..."
                         multiline
+                        value={comment}
                         onChangeText={(text) => setComment(text)}
                       />
 
@@ -270,7 +278,6 @@ const HomeScreen = ({ navigation, route }) => {
     </ScrollView>
   );
 };
-
 
 const styles = StyleSheet.create({
   container: {
@@ -415,8 +422,10 @@ const styles = StyleSheet.create({
     marginTop: 5,
     minHeight: 40,
     width: '100%',
+  },
+  expandedDetails: {
+    marginTop: 10,
   }
-  
 });
 
 export default HomeScreen;
