@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { StyleSheet, Text, View, SafeAreaView, TextInput, TouchableOpacity, Alert } from 'react-native';
 import { createClient } from '@supabase/supabase-js';
+import * as Crypto from 'expo-crypto';
 
 const supabaseUrl = 'https://pafntpcanmavljkxyerv.supabase.co';
 const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhZm50cGNhbm1hdmxqa3h5ZXJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ1MDA5MDAsImV4cCI6MjA1MDA3NjkwMH0.GwUG6tDFxnYE5VhTOK1P8Yx8qxq696zrgvZXRgwagPM';
@@ -13,6 +14,20 @@ const RegisterScreen = ({ navigation }) => {
     confirmPassword: '',
   });
   const [loading, setLoading] = useState(false);
+
+  const hashPassword = async (password) => {
+    try {
+      // Create a SHA-256 hash of the password
+      const digest = await Crypto.digestStringAsync(
+        Crypto.CryptoDigestAlgorithm.SHA256,
+        password
+      );
+      return digest;
+    } catch (error) {
+      console.error('Error hashing password:', error);
+      throw error;
+    }
+  };
 
   const handleRegister = async () => {
     if (!form.username || !form.password || !form.confirmPassword) {
@@ -27,13 +42,16 @@ const RegisterScreen = ({ navigation }) => {
 
     setLoading(true);
     try {
-      // Insert user data into SYSTEM_TEST table
+      // Hash the password before sending to Supabase
+      const hashedPassword = await hashPassword(form.password);
+      
+      // Insert user data into SYSTEM_TEST table with hashed password
       const { data, error } = await supabase
         .from('SYSTEM_TEST')
         .insert([
           { 
             USERNAME: form.username,
-            PASSWORD: form.password, // Note: In production, use proper authentication
+            PASSWORD: hashedPassword, // Now storing the hashed version
             NEW_STATUS: true
           }
         ])
