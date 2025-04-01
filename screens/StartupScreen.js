@@ -67,7 +67,7 @@ const StartupScreen = ({ navigation }) => {
       <View style={styles.buttonContainer}>
         <TouchableOpacity 
           style={styles.circularButton} 
-          onPress={() => navigation.navigate("Home")}
+          onPress={() => navigation.navigate("Login")}
         >
           <Ionicons name="chevron-forward" size={24} color="#2C2F48" />
         </TouchableOpacity>
