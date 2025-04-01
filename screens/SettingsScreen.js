@@ -430,7 +430,7 @@ const styles = StyleSheet.create({
         alignItems: 'center',
     },
     stopButton: {
-        backgroundColor: '#FF3B30',
+        backgroundColor: '#DF6660',
         padding: 12,
         borderRadius: 10,
         alignItems: 'center',
