@@ -19,7 +19,7 @@ const LoginScreen = ({ navigation }) => {
       Alert.alert('Error', 'Please fill in all fields');
       return;
     }
-
+  
     setLoading(true);
     
     try {
@@ -27,18 +27,23 @@ const LoginScreen = ({ navigation }) => {
         Crypto.CryptoDigestAlgorithm.SHA256,
         form.password
       );
-
+  
       const { data, error } = await supabase
         .from('SYSTEM_TEST')
         .select('*')
         .eq('USERNAME', form.email)
         .single();
-
+  
       if (error) throw error;
       
       if (data) {
         if (data.PASSWORD === hashedPassword) {
-          navigation.navigate("Main");
+          // Check the NEW_STATUS column
+          if (data.NEW_STATUS === true) {
+            navigation.navigate("Calibrate");
+          } else {
+            navigation.navigate("Main");
+          }
         } else {
           Alert.alert('Error', 'Invalid username or password');
         }

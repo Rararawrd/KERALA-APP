@@ -55,6 +55,7 @@ export default function App() {
         <Stack.Screen name="Startup" component={StartupScreen} />
         <Stack.Screen name="Login" component={LoginScreen} />
         <Stack.Screen name="Register" component={RegisterScreen} />
+        <Stack.Screen name="Calibrate" component={CalibrateScreen} />
         <Stack.Screen 
           name="Main" 
           component={MainTabs} 
