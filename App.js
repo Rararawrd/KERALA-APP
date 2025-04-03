@@ -9,6 +9,7 @@ import SeeMoreScreen from './screens/SeeMoreScreen';
 import SettingsScreen from './screens/SettingsScreen';
 import LoginScreen from './screens/LoginScreen';
 import RegisterScreen from './screens/RegisterScreen';
+import CalibrateScreen from './screens/CalibrateScreen';
 
 const Tab = createBottomTabNavigator();
 const Stack = createStackNavigator();
@@ -42,6 +43,7 @@ function MainTabs() {
       <Tab.Screen name="Home" component={HomeScreen} />
       <Tab.Screen name="Records" component={SeeMoreScreen} />
       <Tab.Screen name="Settings" component={SettingsScreen} />
+      {/* <Tab.Screen name="Calibrate" component={CalibrateScreen} /> */}
     </Tab.Navigator>
   );
 }
