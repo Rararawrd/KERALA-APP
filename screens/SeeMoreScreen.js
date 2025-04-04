@@ -1,75 +1,131 @@
 import React, { useState, useEffect } from 'react';
-import { StyleSheet, Text, View, ScrollView, TouchableOpacity } from 'react-native';
-import AsyncStorage from '@react-native-async-storage/async-storage';
+import { StyleSheet, Text, View, ScrollView, TouchableOpacity, ActivityIndicator } from 'react-native';
+import { createClient } from '@supabase/supabase-js';
+
+const supabaseUrl = 'https://pafntpcanmavljkxyerv.supabase.co';
+const supabaseKey = 'eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJpc3MiOiJzdXBhYmFzZSIsInJlZiI6InBhZm50cGNhbm1hdmxqa3h5ZXJ2Iiwicm9sZSI6ImFub24iLCJpYXQiOjE3MzQ1MDA5MDAsImV4cCI6MjA1MDA3NjkwMH0.GwUG6tDFxnYE5VhTOK1P8Yx8qxq696zrgvZXRgwagPM';
+const supabase = createClient(supabaseUrl, supabaseKey);
 
 const SeeMoreScreen = ({ navigation, route }) => {
-  const { reports: newReports } = route.params || { reports: [] };
   const [reports, setReports] = useState([]);
+  const [isRefreshing, setIsRefreshing] = useState(false);
 
-  useEffect(() => {
-    const loadReports = async () => {
-      try {
-        const storedReports = await AsyncStorage.getItem('reports');
-        if (storedReports) {
-          setReports(JSON.parse(storedReports));
-        }
-      } catch (error) {
-        console.error('Failed to load reports', error);
-      }
-    };
-
-    loadReports();
-  }, []);
-
-  useEffect(() => {
-    const saveReports = async (updatedReports) => {
-      try {
-        await AsyncStorage.setItem('reports', JSON.stringify(updatedReports));
-      } catch (error) {
-        console.error('Failed to save reports', error);
-      }
-    };
-
-    if (newReports.length > 0) {
-      const updatedReports = [...newReports, ...reports];
-      setReports(updatedReports);
-      saveReports(updatedReports);
-    }
-  }, [newReports]);
-
-  const clearData = async () => {
+  const fetchLatestReports = async () => {
     try {
-      await AsyncStorage.removeItem('reports');
-      setReports([]);
+      setIsRefreshing(true);
+      const { data, error } = await supabase
+        .from('READINGS2_duplicate')
+        .select('HEARTRATE, DECIBEL, symptom, id, TIME')
+        .order('id', { ascending: false })
+        .limit(10);
+      
+      if (error) throw error;
+      
+      setReports(data);
     } catch (error) {
-      console.error('Failed to clear reports', error);
+      console.error('Error fetching reports:', error.message);
+    } finally {
+      setIsRefreshing(false);
     }
   };
 
+  const setupRealtime = () => {
+    const subscription = supabase
+      .channel('reports_changes')
+      .on(
+        'postgres_changes',
+        {
+          event: 'INSERT',
+          schema: 'public',
+          table: 'READINGS2_duplicate'
+        },
+        () => {
+          fetchLatestReports();
+        }
+      )
+      .subscribe();
+
+    return () => {
+      supabase.removeChannel(subscription);
+    };
+  };
+
+  useEffect(() => {
+    fetchLatestReports();
+    const cleanup = setupRealtime();
+    
+    return () => {
+      cleanup();
+    };
+  }, []);
+
+  const handleRefresh = () => {
+    fetchLatestReports();
+  };
+
+  const renderSymptomStatus = (symptom) => {
+    if (symptom === true) return <Text style={styles.symptomTrue}>Sign of Symptoms</Text>;
+    if (symptom === false) return <Text style={styles.symptomFalse}>False Symptoms</Text>;
+    return <Text style={styles.symptomUnknown}>Status Unknown</Text>;
+  };
+
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    const date = new Date(dateString);
+    return date.toLocaleString();
+  };
+
   return (
-    <ScrollView contentContainerStyle={styles.contentContainer} style={styles.container}>
-      <View style={styles.record}>
-        <Text style={styles.recordTitle}>Records</Text>
+    <View style={styles.container}>
+      <View style={styles.contentContainer}>
+        <Text style={styles.header}>Monitoring Records</Text>
+        
+        <View style={styles.tableContainer}>
+          <View style={styles.tableHeader}>
+            <Text style={[styles.headerCell, styles.timeCell]}>Time</Text>
+            <Text style={[styles.headerCell, styles.heartRateCell]}>Heart Rate</Text>
+            <Text style={[styles.headerCell, styles.decibelCell]}>Noise Level</Text>
+            <Text style={[styles.headerCell, styles.statusCell]}>Status</Text>
+          </View>
+          
+          <ScrollView style={styles.scrollContainer}>
+            {reports.length > 0 ? (
+              reports.map((report, index) => (
+                <View 
+                  key={index} 
+                  style={[
+                    styles.tableRow,
+                    index % 2 === 0 ? styles.evenRow : styles.oddRow,
+                    index === reports.length - 1 && styles.lastRow
+                  ]}
+                >
+                  <Text style={[styles.cell, styles.timeCell]}>{formatDate(report.TIME)}</Text>
+                  <Text style={[styles.cell, styles.heartRateCell]}>{report.HEARTRATE} bpm</Text>
+                  <Text style={[styles.cell, styles.decibelCell]}>{report.DECIBEL} dB</Text>
+                  <View style={[styles.cell, styles.statusCell]}>
+                    {renderSymptomStatus(report.symptom)}
+                  </View>
+                </View>
+              ))
+            ) : (
+              <Text style={styles.noDataText}>No records available</Text>
+            )}
+          </ScrollView>
+        </View>
 
-        <ScrollView style={styles.scrollableRecord}>
-          {reports.length > 0 ? (
-            reports.map((report, index) => (
-              <View key={index} style={styles.reportItem}>
-                <Text style={styles.reportText}>
-                  {report.HEARTRATE} bpm, {report.DECIBEL} db - {report.status}
-                </Text>
-              </View>
-            ))
+        <TouchableOpacity 
+          style={styles.refreshButton} 
+          onPress={handleRefresh}
+          disabled={isRefreshing}
+        >
+          {isRefreshing ? (
+            <ActivityIndicator color="#FFFFFF" />
           ) : (
-            <Text style={styles.noDataText}>No records available.</Text>
+            <Text style={styles.refreshButtonText}>Refresh</Text>
           )}
-        </ScrollView>
-
-        <TouchableOpacity style={styles.clearButton} onPress={clearData}>
-          <Text style={styles.clearButtonText}>Clear Data</Text>
         </TouchableOpacity>
       </View>
-    </ScrollView>
+    </View>
   );
 };
 
@@ -79,49 +135,106 @@ const styles = StyleSheet.create({
     backgroundColor: '#2C2F48',
   },
   contentContainer: {
-    flexGrow: 1,
+    flex: 1,
     justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
+    padding: 16,
   },
-  record: {
-    backgroundColor: '#F3EEF8',
-    padding: 20,
-    borderRadius: 20,
-    width: '100%',
-    maxHeight: 300, // Limit height to make it scrollable
-  },
-  scrollableRecord: {
-    maxHeight: 250, // Scrollable area for records
-  },
-  recordTitle: {
-    fontSize: 18,
+  header: {
+    fontSize: 22,
     fontWeight: 'bold',
-    marginBottom: 10,
+    color: '#FFFFFF',
+    marginBottom: 20,
+    textAlign: 'center',
   },
-  reportItem: {
+  tableContainer: {
+    flex: 0, // Don't grow, just take needed space
+    marginBottom: 20,
+  },
+  tableHeader: {
     flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 15,
+    backgroundColor: '#1E2030',
+    paddingVertical: 12,
+    borderTopLeftRadius: 8,
+    borderTopRightRadius: 8,
   },
-  reportText: {
-    textAlign: 'left',
-    color: '#857E81',
-  },
-  noDataText: {
-    textAlign: 'left',
-    color: '#857E81',
-  },
-  clearButton: {
-    marginTop: 10,
-    padding: 10,
-    backgroundColor: '#FF6B6B',
-    borderRadius: 10,
-    alignItems: 'center',
-  },
-  clearButtonText: {
+  headerCell: {
     color: '#FFFFFF',
     fontWeight: 'bold',
+    textAlign: 'center',
+  },
+  tableRow: {
+    flexDirection: 'row',
+    paddingVertical: 12,
+    borderBottomWidth: 1,
+    borderBottomColor: '#3A3E5B',
+  },
+  lastRow: {
+    borderBottomLeftRadius: 8,
+    borderBottomRightRadius: 8,
+    borderBottomWidth: 0,
+  },
+  evenRow: {
+    backgroundColor: '#3A3E5B',
+  },
+  oddRow: {
+    backgroundColor: '#2C2F48',
+  },
+  cell: {
+    color: '#FFFFFF',
+    textAlign: 'center',
+    paddingHorizontal: 4,
+  },
+  timeCell: {
+    flex: 2,
+    textAlign: 'left',
+    paddingLeft: 8,
+  },
+  heartRateCell: {
+    flex: 1,
+  },
+  decibelCell: {
+    flex: 1,
+  },
+  statusCell: {
+    flex: 1.5,
+    justifyContent: 'center',
+    alignItems: 'center',
+  },
+  scrollContainer: {
+    maxHeight: 400, // Set a max height to prevent taking full screen
+    borderRadius: 8,
+    borderWidth: 1,
+    borderColor: '#3A3E5B',
+  },
+  noDataText: {
+    color: '#FFFFFF',
+    textAlign: 'center',
+    padding: 20,
+  },
+  symptomTrue: {
+    color: '#FF6B6B',
+    fontWeight: 'bold',
+  },
+  symptomFalse: {
+    color: '#6BCB77',
+    fontWeight: 'bold',
+  },
+  symptomUnknown: {
+    color: '#FFD93D',
+    fontWeight: 'bold',
+  },
+  refreshButton: {
+    backgroundColor: '#F4A9BD',
+    padding: 15,
+    borderRadius: 8,
+    alignItems: 'center',
+    justifyContent: 'center',
+    marginTop: 10,
+  },
+  refreshButtonText: {
+    color: '#FFFFFF',
+    fontWeight: 'bold',
+    fontSize: 16,
   },
 });
 

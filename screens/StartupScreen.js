@@ -9,7 +9,7 @@ const StartupScreen = ({ navigation }) => {
       {/* Image section */}
       <View style={styles.imageContainer}>
         <Image
-          source={require('./images/watch.png')}
+          source={require('./images/smartwatch.png')}
           style={styles.image}
           resizeMode="contain"
         />
@@ -123,8 +123,9 @@ const styles = StyleSheet.create({
     alignItems: 'center',
   },
   image: {
-    width: 350, // Adjust width
-    height: 350, // Adjust height
+    width: 370, // Adjust width
+    height: 370, // Adjust height
+    marginTop: 80,
   },
   buttonSection: {
     flexDirection: 'row',

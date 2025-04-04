@@ -21,6 +21,24 @@ Notifications.setNotificationHandler({
   }),
 });
 
+// Helper function to format time (HH:MM without seconds)
+const formatTime = (datetimeString) => {
+  if (!datetimeString) return '';
+  
+  if (datetimeString.match(/^\d{2}:\d{2}:\d{2}$/)) {
+    return datetimeString.substring(0, 5);
+  }
+  
+  const dateObj = new Date(datetimeString);
+  if (isNaN(dateObj.getTime())) {
+    return datetimeString;
+  }
+  
+  const hours = dateObj.getHours().toString().padStart(2, '0');
+  const minutes = dateObj.getMinutes().toString().padStart(2, '0');
+  return `${hours}:${minutes}`;
+};
+
 const HomeScreen = ({ navigation, route }) => {
   const getCurrentWeekDates = () => {
     const currentDate = new Date();
@@ -49,7 +67,6 @@ const HomeScreen = ({ navigation, route }) => {
   const [bpmThreshold, setBpmThreshold] = useState(null);
   const [dbThreshold, setDbThreshold] = useState(null);
 
-  // Request notification permissions on component mount
   useEffect(() => {
     const requestNotificationPermission = async () => {
       const { status } = await Notifications.requestPermissionsAsync();
@@ -102,7 +119,7 @@ const HomeScreen = ({ navigation, route }) => {
   const fetchReports = async () => {
     const { data, error } = await supabase
       .from('READINGS2_duplicate')
-      .select('*')
+      .select('*, TIME')
       .order('id', { ascending: false })
       .limit(1);
 
@@ -122,13 +139,12 @@ const HomeScreen = ({ navigation, route }) => {
           setReports((prevReports) => [{ ...newReport, status: 'Pending' }, ...prevReports]);
           setLatestReportId(newReport.id);
 
-          // Trigger local notification
           await Notifications.scheduleNotificationAsync({
             content: {
               title: 'New Alert!',
-              body: `Heart Rate: ${newReport.HEARTRATE} bpm, Decibel: ${newReport.DECIBEL} db`,
+              body: `Heart Rate: ${newReport.HEARTRATE} bpm, Decibel: ${newReport.DECIBEL} db at ${formatTime(newReport.TIME)}`,
             },
-            trigger: null, // Trigger immediately
+            trigger: null,
           });
         }
       }
@@ -137,7 +153,6 @@ const HomeScreen = ({ navigation, route }) => {
 
   const handleStatusUpdate = async (report, status, comment) => {
     try {
-      // Update the record in Supabase (only update symptom and comment columns)
       const { data, error } = await supabase
         .from('READINGS2_duplicate')
         .update({
@@ -151,21 +166,10 @@ const HomeScreen = ({ navigation, route }) => {
         return;
       }
 
-      // Update the local state to reflect the new status
-      const updatedReports = reports.map((rep) =>
-        rep.id === report.id ? { 
-          ...rep, 
-          status,
-          symptom: status === 'Sign of Symptom',
-          comment: comment || null
-        } : rep
-      );
-      
+      const updatedReports = reports.filter((rep) => rep.id !== report.id);
       setReports(updatedReports);
-      setComment(''); // Clear the comment input after submission
-
-      // Navigate to the Records screen with the updated reports
-      navigation.navigate('Records', { reports: updatedReports });
+      setComment('');
+      setExpandedItem(null);
 
     } catch (err) {
       console.error('Error in handleStatusUpdate:', err);
@@ -216,63 +220,53 @@ const HomeScreen = ({ navigation, route }) => {
         </View>
 
         <ScrollView style={styles.reportsScroll}>
-          {reports.map((report, index) => {
-            let statusSymbol;
+          {reports.map((report, index) => (
+            <TouchableOpacity
+              key={index}
+              style={styles.reportItem}
+              onPress={() => setExpandedItem(expandedItem === index ? null : index)}
+            >
+              <View>
+                <Text style={styles.pendingTitle}>
+                  <Ionicons name="help-circle" size={20} color="orange" /> Pending
+                </Text>
+                <Text style={styles.reportDetails}>
+                  {report.HEARTRATE} bpm, {report.DECIBEL} db - {formatTime(report.TIME)}
+                </Text>
 
-            if (report.status === 'Pending')
-              statusSymbol = <Ionicons name="help-circle" size={20} color="orange" />;
-            else if (report.status === 'False Symptom')
-              statusSymbol = <Ionicons name="close-circle" size={20} color="red" />;
-            else if (report.status === 'Sign of Symptom')
-              statusSymbol = <Ionicons name="checkmark-circle" size={20} color="green" />;
+                {expandedItem === index && (
+                  <View style={styles.expandedDetails}>
+                    <Text style={styles.reportDetails}>Is this a symptom?</Text>
 
-            return (
-              <TouchableOpacity
-                key={index}
-                style={styles.reportItem}
-                onPress={() => setExpandedItem(expandedItem === index ? null : index)}
-              >
-                <View>
-                  <Text style={styles.pendingTitle}>
-                    {statusSymbol} {report.status}
-                  </Text>
-                  <Text style={styles.reportDetails}>
-                    {report.HEARTRATE} bpm, {report.DECIBEL} db
-                  </Text>
+                    <TextInput
+                      style={styles.commentBox}
+                      placeholder="Add a comment..."
+                      placeholderTextColor="#999"
+                      multiline
+                      value={comment}
+                      onChangeText={(text) => setComment(text)}
+                    />
 
-                  {expandedItem === index && report.status === 'Pending' && (
-                    <View style={styles.expandedDetails}>
-                      <Text style={styles.reportDetails}>Is this a symptom?</Text>
+                    <View style={styles.buttonContainer}>
+                      <TouchableOpacity
+                        style={styles.symptomButton}
+                        onPress={() => handleStatusUpdate(report, 'Sign of Symptom', comment)}
+                      >
+                        <Text style={styles.buttonText}>Symptoms</Text>
+                      </TouchableOpacity>
 
-                      <TextInput
-                        style={styles.commentBox}
-                        placeholder="Add a comment..."
-                        multiline
-                        value={comment}
-                        onChangeText={(text) => setComment(text)}
-                      />
-
-                      <View style={styles.buttonContainer}>
-                        <TouchableOpacity
-                          style={styles.symptomButton}
-                          onPress={() => handleStatusUpdate(report, 'Sign of Symptom', comment)}
-                        >
-                          <Text style={styles.buttonText}>Symptoms</Text>
-                        </TouchableOpacity>
-
-                        <TouchableOpacity
-                          style={styles.notSymptomButton}
-                          onPress={() => handleStatusUpdate(report, 'False Symptom', comment)}
-                        >
-                          <Text style={styles.buttonText}>Not Symptoms</Text>
-                        </TouchableOpacity>
-                      </View>
+                      <TouchableOpacity
+                        style={styles.notSymptomButton}
+                        onPress={() => handleStatusUpdate(report, 'False Symptom', comment)}
+                      >
+                        <Text style={styles.buttonText}>Not Symptoms</Text>
+                      </TouchableOpacity>
                     </View>
-                  )}
-                </View>
-              </TouchableOpacity>
-            );
-          })}
+                  </View>
+                )}
+              </View>
+            </TouchableOpacity>
+          ))}
         </ScrollView>
       </View>
     </ScrollView>
@@ -384,24 +378,45 @@ const styles = StyleSheet.create({
     color: '#857E81',
     marginVertical: 5,
   },
+  expandedDetails: {
+    marginTop: 10,
+    width: '100%',
+  },
+  commentBox: {
+    borderWidth: 1,
+    borderColor: '#ccc',
+    borderRadius: 10,
+    padding: 12,
+    marginTop: 5,
+    minHeight: 50,
+    maxHeight: 100,
+    width: '100%',
+    textAlignVertical: 'top',
+    backgroundColor: '#fff',
+    fontSize: 14,
+    color: '#000',
+  },
   buttonContainer: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     marginTop: 10,
-    marginLeft: 100,
+    width: '100%',
   },
   symptomButton: {
     backgroundColor: '#DF6660',
-    paddingVertical: 5,
-    paddingHorizontal: 15,
+    paddingVertical: 8,
     borderRadius: 5,
-    marginRight: 10,
+    flex: 1,
+    marginRight: 5,
+    alignItems: 'center',
   },
   notSymptomButton: {
     backgroundColor: '#2C2F48',
-    paddingVertical: 5,
-    paddingHorizontal: 15,
+    paddingVertical: 8,
     borderRadius: 5,
+    flex: 1,
+    marginLeft: 5,
+    alignItems: 'center',
   },
   buttonText: {
     color: '#FFFFFF',
@@ -414,18 +429,6 @@ const styles = StyleSheet.create({
     top: 10,
     left: 10,
   },
-  commentBox: {
-    borderWidth: 1,
-    borderColor: '#ccc',
-    borderRadius: 10,
-    padding: 8,
-    marginTop: 5,
-    minHeight: 40,
-    width: '100%',
-  },
-  expandedDetails: {
-    marginTop: 10,
-  }
 });
 
 export default HomeScreen;
