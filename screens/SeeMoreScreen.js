@@ -14,9 +14,9 @@ const SeeMoreScreen = ({ navigation, route }) => {
     try {
       setIsRefreshing(true);
       const { data, error } = await supabase
-        .from('READINGS2_duplicate')
-        .select('HEARTRATE, DECIBEL, symptom, id, TIME')
-        .order('id', { ascending: false })
+        .from('1_READ')
+        .select('read_bpm, read_db, symptom, read_ID, time')
+        .order('read_ID', { ascending: false })
         .limit(10);
       
       if (error) throw error;
@@ -37,7 +37,7 @@ const SeeMoreScreen = ({ navigation, route }) => {
         {
           event: 'INSERT',
           schema: 'public',
-          table: 'READINGS2_duplicate'
+          table: '1_READ'
         },
         () => {
           fetchLatestReports();
@@ -99,9 +99,9 @@ const SeeMoreScreen = ({ navigation, route }) => {
                     index === reports.length - 1 && styles.lastRow
                   ]}
                 >
-                  <Text style={[styles.cell, styles.timeCell]}>{formatDate(report.TIME)}</Text>
-                  <Text style={[styles.cell, styles.heartRateCell]}>{report.HEARTRATE} bpm</Text>
-                  <Text style={[styles.cell, styles.decibelCell]}>{report.DECIBEL} dB</Text>
+                  <Text style={[styles.cell, styles.timeCell]}>{formatDate(report.time)}</Text>
+                  <Text style={[styles.cell, styles.heartRateCell]}>{report.read_bpm} bpm</Text>
+                  <Text style={[styles.cell, styles.decibelCell]}>{report.read_db} dB</Text>
                   <View style={[styles.cell, styles.statusCell]}>
                     {renderSymptomStatus(report.symptom)}
                   </View>

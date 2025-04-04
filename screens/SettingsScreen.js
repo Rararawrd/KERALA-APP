@@ -84,18 +84,18 @@ const SettingsScreen = ({ navigation }) => {
 
             // Load most recent recording from Supabase
             const { data, error } = await supabase
-                .from('threshold')
-                .select('t_bpm, t_dba, recording')
-                .order('t_id', { ascending: false })
+                .from('1_THRESHOLD')
+                .select('threshold_bpm, threshold_db, recording')
+                .order('threshold_ID', { ascending: false })
                 .limit(1);
 
             if (!error && data && data.length > 0) {
                 const latestRecording = data[0];
                 // Use Supabase data if available, otherwise use local storage
-                setBpmThreshold(latestRecording.t_bpm?.toString() ?? savedBpm ?? '');
-                setDbThreshold(latestRecording.t_dba?.toString() ?? savedDb ?? '');
-                setBpmInput(latestRecording.t_bpm?.toString() ?? savedBpm ?? '');
-                setDbInput(latestRecording.t_dba?.toString() ?? savedDb ?? '');
+                setBpmThreshold(latestRecording.threshold_bpm?.toString() ?? savedBpm ?? '');
+                setDbThreshold(latestRecording.threshold_db?.toString() ?? savedDb ?? '');
+                setBpmInput(latestRecording.threshold_bpm?.toString() ?? savedBpm ?? '');
+                setDbInput(latestRecording.threshold_db?.toString() ?? savedDb ?? '');
                 
                 // Set recording status
                 if (latestRecording.recording) {
@@ -174,10 +174,10 @@ const SettingsScreen = ({ navigation }) => {
             if (thresholdsChanged) {
                 // If thresholds changed, insert a new row with recording status true
                 const { data, error } = await supabase
-                    .from('threshold')
+                    .from('1_THRESHOLD')
                     .insert([{ 
-                        t_bpm: parseInt(bpmInput),
-                        t_dba: parseInt(dbInput),
+                        threshold_bpm: parseInt(bpmInput),
+                        threshold_db: parseInt(dbInput),
                         recording: true
                     }])
                     .select();
@@ -188,9 +188,9 @@ const SettingsScreen = ({ navigation }) => {
             } else {
                 // If thresholds didn't change, find the most recent recording
                 const { data: recentRecordings, error: findError } = await supabase
-                    .from('threshold')
-                    .select('t_id')
-                    .order('t_id', { ascending: false })
+                    .from('1_THRESHOLD')
+                    .select('threshold_ID')
+                    .order('threshold_ID', { ascending: false })
                     .limit(1);
     
                 if (findError) throw findError;
@@ -199,15 +199,15 @@ const SettingsScreen = ({ navigation }) => {
                     throw new Error('No existing recording found');
                 }
     
-                const recordingId = recentRecordings[0].t_id;
+                const recordingId = recentRecordings[0].threshold_ID;
     
                 // Update the recording status to true
                 const { error: updateError } = await supabase
-                    .from('threshold')
+                    .from('1_THRESHOLD')
                     .update({ 
                         recording: true
                     })
-                    .eq('t_id', recordingId);
+                    .eq('threshold_ID', recordingId);
     
                 if (updateError) throw updateError;
             }
@@ -234,10 +234,10 @@ const SettingsScreen = ({ navigation }) => {
         try {
             // Find the most recent active recording
             const { data: activeRecordings, error: findError } = await supabase
-                .from('threshold')
-                .select('t_id')
+                .from('1_THRESHOLD')
+                .select('threshold_ID')
                 .eq('recording', true)
-                .order('t_id', { ascending: false })
+                .order('threshold_ID', { ascending: false })
                 .limit(1);
 
             if (findError) throw findError;
@@ -246,15 +246,15 @@ const SettingsScreen = ({ navigation }) => {
                 throw new Error('No active recording found');
             }
 
-            const recordingId = activeRecordings[0].t_id;
+            const recordingId = activeRecordings[0].threshold_ID;
 
             // Update the recording status to false
             const { error: updateError } = await supabase
-                .from('threshold')
+                .from('1_THRESHOLD')
                 .update({ 
                     recording: false
                 })
-                .eq('t_id', recordingId);
+                .eq('threshold_ID', recordingId);
 
             if (updateError) throw updateError;
 

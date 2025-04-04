@@ -29,17 +29,17 @@ const LoginScreen = ({ navigation }) => {
       );
   
       const { data, error } = await supabase
-        .from('SYSTEM_TEST')
+        .from('1_SYSTEM')
         .select('*')
-        .eq('USERNAME', form.email)
+        .eq('username', form.email)
         .single();
   
       if (error) throw error;
       
       if (data) {
-        if (data.PASSWORD === hashedPassword) {
+        if (data.password === hashedPassword) {
           // Check the NEW_STATUS column
-          if (data.NEW_STATUS === true) {
+          if (data.new === true) {
             navigation.navigate("Calibrate");
           } else {
             navigation.navigate("Main");

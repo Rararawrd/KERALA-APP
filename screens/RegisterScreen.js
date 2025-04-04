@@ -47,12 +47,12 @@ const RegisterScreen = ({ navigation }) => {
       
       // Insert user data into SYSTEM_TEST table with hashed password
       const { data, error } = await supabase
-        .from('SYSTEM_TEST')
+        .from('1_SYSTEM')
         .insert([
           { 
-            USERNAME: form.username,
-            PASSWORD: hashedPassword, // Now storing the hashed version
-            NEW_STATUS: true
+            username: form.username,
+            password: hashedPassword, // Now storing the hashed version
+            new: true
           }
         ])
         .select();

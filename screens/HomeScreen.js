@@ -118,9 +118,9 @@ const HomeScreen = ({ navigation, route }) => {
 
   const fetchReports = async () => {
     const { data, error } = await supabase
-      .from('READINGS2_duplicate')
-      .select('*, TIME')
-      .order('id', { ascending: false })
+      .from('1_READ')
+      .select('*, time')
+      .order('read_ID', { ascending: false })
       .limit(1);
 
     if (error) {
@@ -131,18 +131,18 @@ const HomeScreen = ({ navigation, route }) => {
     if (data.length > 0) {
       const newReport = data[0];
 
-      setBpm(newReport.HEARTRATE);
-      setDb(newReport.DECIBEL);
+      setBpm(newReport.read_bpm);
+      setDb(newReport.read_db);
 
-      if (newReport.HEARTRATE >= bpmThreshold && newReport.DECIBEL >= dbThreshold) {
-        if (!reports.some((report) => report.id === newReport.id)) {
+      if (newReport.read_bpm >= bpmThreshold && newReport.read_db >= dbThreshold) {
+        if (!reports.some((report) => report.read_ID === newReport.read_ID)) {
           setReports((prevReports) => [{ ...newReport, status: 'Pending' }, ...prevReports]);
-          setLatestReportId(newReport.id);
+          setLatestReportId(newReport.read_ID);
 
           await Notifications.scheduleNotificationAsync({
             content: {
               title: 'New Alert!',
-              body: `Heart Rate: ${newReport.HEARTRATE} bpm, Decibel: ${newReport.DECIBEL} db at ${formatTime(newReport.TIME)}`,
+              body: `Heart Rate: ${newReport.read_bpm} bpm, Decibel: ${newReport.read_db} db at ${formatTime(newReport.time)}`,
             },
             trigger: null,
           });
@@ -154,19 +154,19 @@ const HomeScreen = ({ navigation, route }) => {
   const handleStatusUpdate = async (report, status, comment) => {
     try {
       const { data, error } = await supabase
-        .from('READINGS2_duplicate')
+        .from('1_READ')
         .update({
           symptom: status === 'Sign of Symptom',
           comment: comment || null
         })
-        .eq('id', report.id);
+        .eq('read_ID', report.read_ID);
 
       if (error) {
         console.error('Error updating record:', error.message);
         return;
       }
 
-      const updatedReports = reports.filter((rep) => rep.id !== report.id);
+      const updatedReports = reports.filter((rep) => rep.read_ID !== report.read_ID);
       setReports(updatedReports);
       setComment('');
       setExpandedItem(null);
@@ -231,7 +231,7 @@ const HomeScreen = ({ navigation, route }) => {
                   <Ionicons name="help-circle" size={20} color="orange" /> Pending
                 </Text>
                 <Text style={styles.reportDetails}>
-                  {report.HEARTRATE} bpm, {report.DECIBEL} db - {formatTime(report.TIME)}
+                  {report.read_bpm} bpm, {report.read_db} db - {formatTime(report.time)}
                 </Text>
 
                 {expandedItem === index && (
